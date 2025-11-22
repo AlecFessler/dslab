@@ -9,6 +9,12 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     if (fuzz) {
+        const fuzzlib_mod = b.createModule(.{
+            .root_source_file = b.path("../fuzzlib/fuzz.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+
         const exe = b.addExecutable(.{
             .name = "fuzz_rbt.exe",
             .root_module = b.createModule(.{
@@ -17,6 +23,9 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
             }),
         });
+
+        exe.root_module.addImport("fuzzlib", fuzzlib_mod);
+
         b.installArtifact(exe);
     }
 

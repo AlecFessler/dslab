@@ -13,7 +13,6 @@ pub fn RedBlackTree(
     return struct {
         const Self = @This();
 
-        allocator: std.mem.Allocator,
         root: ?*Node,
         count: usize,
 
@@ -96,15 +95,14 @@ pub fn RedBlackTree(
             }
         };
 
-        pub fn init(allocator: std.mem.Allocator) Self {
+        pub fn init() Self {
             return .{
-                .allocator = allocator,
                 .root = null,
                 .count = 0,
             };
         }
 
-        pub fn deinit(self: *Self) void {
+        pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
             var current = self.root;
 
             while (current) |c| {
@@ -123,7 +121,7 @@ pub fn RedBlackTree(
                         }
                     }
 
-                    c.destroy(self.allocator);
+                    c.destroy(allocator);
                     current = parent;
                 }
             }
@@ -145,9 +143,9 @@ pub fn RedBlackTree(
             return false;
         }
 
-        pub fn insert(self: *Self, data: T) !void {
+        pub fn insert(self: *Self, allocator: std.mem.Allocator, data: T) !void {
             if (self.root == null) {
-                _ = try self.insertAtPtr(null, Direction.left, data);
+                _ = try self.insertAtPtr(allocator, null, Direction.left, data);
                 return;
             }
 
@@ -174,11 +172,11 @@ pub fn RedBlackTree(
                 }
             }
 
-            _ = try self.insertAtPtr(parent.?, dir, data);
+            _ = try self.insertAtPtr(allocator, parent.?, dir, data);
         }
 
-        pub fn insertAtPtr(self: *Self, parent: ?*Node, dir: Direction, data: T) !*Node {
-            const node = try Node.create(self.allocator, data);
+        pub fn insertAtPtr(self: *Self, allocator: std.mem.Allocator, parent: ?*Node, dir: Direction, data: T) !*Node {
+            const node = try Node.create(allocator, data);
 
             if (parent) |p| {
                 std.debug.assert(p.getChild(dir) == null);
@@ -241,7 +239,7 @@ pub fn RedBlackTree(
             self.root.?.color = Color.Black;
         }
 
-        pub fn remove(self: *Self, data: T) !T {
+        pub fn remove(self: *Self, allocator: std.mem.Allocator, data: T) !T {
             var current: ?*Node = self.root orelse return ContainerError.NotFound;
 
             while (current) |c| {
@@ -253,10 +251,10 @@ pub fn RedBlackTree(
             }
 
             if (current == null) return ContainerError.NotFound;
-            return self.removeFromPtr(current.?);
+            return self.removeFromPtr(allocator, current.?);
         }
 
-        pub fn removeFromPtr(self: *Self, target_node: *Node) T {
+        pub fn removeFromPtr(self: *Self, allocator: std.mem.Allocator, target_node: *Node) T {
             self.count -= 1;
             var parent_of_target: ?*Node = target_node.parent;
             const removed_value = target_node.data;
@@ -288,7 +286,7 @@ pub fn RedBlackTree(
                     }
                 }
 
-                target_node.destroy(self.allocator);
+                target_node.destroy(allocator);
                 return removed_value;
             } else {
                 var successor_node: *Node = target_node.getChild(.right).?;
@@ -319,7 +317,7 @@ pub fn RedBlackTree(
                 successor_node.setParentChildRelation(target_node.getChild(.left), .left);
                 successor_node.color = target_node.color;
 
-                target_node.destroy(self.allocator);
+                target_node.destroy(allocator);
 
                 if (original_color_of_successor == .Black) {
                     const double_black_parent: *Node = if (parent_of_successor) |pos| pos else successor_node;
