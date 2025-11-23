@@ -11,8 +11,7 @@ pub fn main() !void {
     const Fuzzer = fuzzlib.Fuzzer(RedBlackTree, .{
         .{
             .func = RedBlackTree.insert,
-            .name = "insert",
-            .args_fmt = "{}",
+            .fmt = "insert {}, {} -> !",
             .callbacks = .{
                 .{ .param_idx = 2, .callback = insertCallback },
             },
@@ -22,9 +21,7 @@ pub fn main() !void {
         },
         .{
             .func = RedBlackTree.remove,
-            .name = "remove",
-            .args_fmt = "{}",
-            .ret_fmt = "{}",
+            .fmt = "remove {}, {} -> !{}",
             .generators = .{
                 .{ .param_idx = 1, .generator = allocatorGenerator },
                 .{ .param_idx = 2, .generator = removeInputGenerator },
@@ -32,24 +29,41 @@ pub fn main() !void {
         },
     });
 
-    const buffer = try dbg_alloc.allocator().alloc(u8, 4 * 4096);
-    defer dbg_alloc.allocator().free(buffer);
+    var iterations: u64 = 0;
+    var log_path: []const u8 = "fuzz.log";
+    var seed: u64 = 0;
 
-    var file = try std.fs.cwd().createFile("fuzz.log", .{ .truncate = true });
+    const allocator = dbg_alloc.allocator();
+    var argsIter = try std.process.ArgIterator.initWithAllocator(allocator);
+
+    while (argsIter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "-i")) {
+            if (argsIter.next()) |iters| {
+                iterations = try std.fmt.parseInt(u64, iters, 10);
+            }
+        } else if (std.mem.eql(u8, arg, "-o")) {
+            if (argsIter.next()) |path| {
+                log_path = path;
+            }
+        } else if (std.mem.eql(u8, arg, "-s")) {
+            if (argsIter.next()) |s| {
+                seed = try std.fmt.parseInt(u64, s, 10);
+            }
+        } else continue;
+    }
+
+    var file = try std.fs.cwd().createFile(log_path, .{ .truncate = true });
     defer file.close();
 
+    const buffer = try allocator.alloc(u8, 4 * 4096);
     var file_writer = file.writer(buffer);
     const w = &file_writer.interface;
-    defer w.flush() catch |err| {
-        std.debug.panic("log writer flush failed: {}\n", .{err});
-    };
+    defer w.flush() catch {};
     fuzzlib.setLogWriter(w);
 
     var rbt = RedBlackTree.init();
-    const seed = 0;
-
     var fuzzer = Fuzzer.init(validate, &rbt, seed);
-    for (0..100_000) |_| {
+    for (0..iterations) |_| {
         fuzzer.step() catch |err| {
             switch (err) {
                 error.NotFound => continue,

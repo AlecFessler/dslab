@@ -2,6 +2,7 @@ const std = @import("std");
 
 const FuzzErrors = error{
     DetectedInvalidState,
+    FmtParseError,
 };
 
 pub var log_writer: ?*std.Io.Writer = null;
@@ -11,31 +12,36 @@ pub var step_idx: u64 = 0;
 fn callFn(
     comptime returns_err: bool,
     comptime returns_val: bool,
-    comptime fn_name: []const u8,
-    comptime args_fmt: ?[]const u8,
-    comptime ret_fmt: ?[]const u8,
+    comptime fmt: []const u8,
     comptime func: anytype,
     comptime ErrorUnion: type,
     args: anytype,
 ) ErrorUnion!void {
-    const func_info = @typeInfo(@TypeOf(func)).@"fn";
-    const ReturnType = if (func_info.return_type) |rt| rt else void;
+    const fn_info = @typeInfo(@TypeOf(func)).@"fn";
+    const ReturnType = if (fn_info.return_type) |rt| rt else void;
+
+    var r = std.io.Reader.fixed(fmt);
+    const fn_name = r.takeDelimiterExclusive(' ') catch return error.FmtParseError;
 
     logPrint("#{}: {s}(", .{ step_idx, fn_name });
-    if (args_fmt) |fmt| {
-        const args_info = @typeInfo(@TypeOf(args));
-        if (args_info.@"struct".fields.len > 1) {
-            inline for (args_info.@"struct".fields[1..], 0..) |field, i| {
-                if (i > 0) logPrint(", ", .{});
-                const T = field.type;
-                if (T == std.mem.Allocator) {
-                    logPrint("allocator", .{});
-                } else {
-                    logPrint(fmt, .{@field(args, field.name)});
-                }
+
+    const args_info = @typeInfo(@TypeOf(args));
+    if (args_info.@"struct".fields.len > 1) {
+        inline for (args_info.@"struct".fields[1..], 0..) |field, i| {
+            if (i > 0) logPrint(", ", .{});
+
+            _ = r.discardDelimiterExclusive('{') catch return error.FmtParseError;
+            const arg_fmt = r.takeDelimiterInclusive('}') catch return error.FmtParseError;
+
+            if (field.type == std.mem.Allocator) {
+                logPrint("allocator", .{});
+            } else {
+                const v = @field(args, field.name);
+                try logFmtArg(arg_fmt, v);
             }
         }
     }
+
     logPrint(")", .{});
 
     if (returns_err) {
@@ -43,17 +49,29 @@ fn callFn(
             logPrint(" = {}\n", .{err});
             return err;
         };
-        if (ReturnType != void and ret_fmt != null) {
-            logPrint(" = ", .{});
-            logPrint(ret_fmt.?, .{ret});
+
+        if (ReturnType != void) {
+            _ = r.discardDelimiterInclusive('!') catch return error.FmtParseError;
+
+            const remaining = r.peek(1) catch &[_]u8{};
+            if (remaining.len > 0 and remaining[0] == '{') {
+                _ = r.discardDelimiterExclusive('{') catch return error.FmtParseError;
+                const ret_fmt = r.takeDelimiterInclusive('}') catch return error.FmtParseError;
+                logPrint(" = ", .{});
+                try logFmtArg(ret_fmt, ret);
+            }
         }
+
         logPrint("\n", .{});
     } else if (returns_val) {
         const ret = @call(.auto, func, args);
-        if (ret_fmt) |fmt| {
-            logPrint(" = ", .{});
-            logPrint(fmt, .{ret});
-        }
+
+        _ = r.discardDelimiterInclusive('>') catch return error.FmtParseError;
+        _ = r.discardDelimiterExclusive('{') catch return error.FmtParseError;
+        const ret_fmt = r.takeDelimiterInclusive('}') catch return error.FmtParseError;
+
+        logPrint(" = ", .{});
+        try logFmtArg(ret_fmt, ret);
         logPrint("\n", .{});
     } else {
         @call(.auto, func, args);
@@ -103,6 +121,44 @@ fn genRandNum(comptime T: type, rand: std.Random) T {
     };
 }
 
+fn logFmtArg(fmt_slice: []const u8, value: anytype) FuzzErrors!void {
+    const T = @TypeOf(value);
+    if (@typeInfo(T) == .void) return;
+
+    if (!std.mem.startsWith(u8, fmt_slice, "{") or
+        !std.mem.endsWith(u8, fmt_slice, "}"))
+        return error.FmtParseError;
+
+    const inner = fmt_slice[1 .. fmt_slice.len - 1];
+
+    if (std.mem.eql(u8, inner, "")) {
+        logPrint("{}", .{value});
+        return;
+    }
+
+    if (std.mem.eql(u8, inner, "x")) {
+        switch (@typeInfo(T)) {
+            .int => {
+                logPrint("{x}", .{value});
+                return;
+            },
+            else => return error.FmtParseError,
+        }
+    }
+
+    if (std.mem.eql(u8, inner, "s")) {
+        switch (@typeInfo(T)) {
+            .pointer, .array => {
+                logPrint("{s}", .{value});
+                return;
+            },
+            else => return error.FmtParseError,
+        }
+    }
+
+    return error.FmtParseError;
+}
+
 fn logPrint(comptime fmt: []const u8, args: anytype) void {
     if (log_writer) |w| {
         w.print(fmt, args) catch |err| {
@@ -118,12 +174,6 @@ fn makeOp(
 ) *const fn (*DStruct, std.Random) ErrorUnion!void {
     const func = op_cfg.func;
     const fn_info = @typeInfo(@TypeOf(func)).@"fn";
-    const fn_name = if (@hasField(@TypeOf(op_cfg), "name"))
-        op_cfg.name
-    else
-        @typeName(@TypeOf(func));
-    const args_fmt = if (@hasField(@TypeOf(op_cfg), "args_fmt")) op_cfg.args_fmt else null;
-    const ret_fmt = if (@hasField(@TypeOf(op_cfg), "ret_fmt")) op_cfg.ret_fmt else null;
 
     if (fn_info.params.len > 5) std.debug.panic("Fuzzer currently only supports functions with up to 4 args", .{});
 
@@ -194,79 +244,31 @@ fn makeOp(
                 } else break :blk false;
             };
 
-            switch (fn_info.params.len) {
-                1 => {
-                    try callFn(
-                        returns_err,
-                        returns_val,
-                        fn_name,
-                        args_fmt,
-                        ret_fmt,
-                        func,
-                        ErrorUnion,
-                        .{ds},
-                    );
-                },
-                2 => {
-                    const a = genParam(1, rand);
-                    try callFn(
-                        returns_err,
-                        returns_val,
-                        fn_name,
-                        args_fmt,
-                        ret_fmt,
-                        func,
-                        ErrorUnion,
-                        .{ ds, a },
-                    );
-                },
-                3 => {
-                    const a = genParam(1, rand);
-                    const b = genParam(2, rand);
-                    try callFn(
-                        returns_err,
-                        returns_val,
-                        fn_name,
-                        args_fmt,
-                        ret_fmt,
-                        func,
-                        ErrorUnion,
-                        .{ ds, a, b },
-                    );
-                },
-                4 => {
-                    const a = genParam(1, rand);
-                    const b = genParam(2, rand);
-                    const c = genParam(3, rand);
-                    try callFn(
-                        returns_err,
-                        returns_val,
-                        fn_name,
-                        args_fmt,
-                        ret_fmt,
-                        func,
-                        ErrorUnion,
-                        .{ ds, a, b, c },
-                    );
-                },
-                5 => {
-                    const a = genParam(1, rand);
-                    const b = genParam(2, rand);
-                    const c = genParam(3, rand);
-                    const d = genParam(4, rand);
-                    try callFn(
-                        returns_err,
-                        returns_val,
-                        fn_name,
-                        args_fmt,
-                        ret_fmt,
-                        func,
-                        ErrorUnion,
-                        .{ ds, a, b, c, d },
-                    );
-                },
-                else => std.debug.panic("Fuzzer currently only supports functions with up to 4 args", .{}),
-            }
+            const args = blk: {
+                const num_params = fn_info.params.len;
+                if (num_params == 1) break :blk .{ds};
+
+                const a = genParam(1, rand);
+                if (num_params == 2) break :blk .{ ds, a };
+
+                const b = genParam(2, rand);
+                if (num_params == 3) break :blk .{ ds, a, b };
+
+                const c = genParam(3, rand);
+                if (num_params == 4) break :blk .{ ds, a, b, c };
+
+                const d = genParam(4, rand);
+                if (num_params == 5) break :blk .{ ds, a, b, c, d };
+            };
+
+            try callFn(
+                returns_err,
+                returns_val,
+                op_cfg.fmt,
+                func,
+                ErrorUnion,
+                args,
+            );
         }
     };
 
