@@ -2,17 +2,24 @@ const std = @import("std");
 const shared = @import("shared");
 
 const makeOp = shared.makeOp.makeOp;
+const makeOpsTable = shared.makeOp.makeOpsTable;
 const logPrint = shared.log.logPrint;
 const logFmtArg = shared.log.logFmtArg;
 const setLogWriter = shared.log.setLogWriter;
 
+const CollectErrorUnion = shared.makeOp.CollectErrorUnion;
+
 const FmtErrors = shared.log.FmtErrors;
-const ProfErrors = error{
-    FmtParseError,
-};
+const ProfErrors = error{};
 
 pub var rng: std.Random.DefaultPrng = undefined;
 pub var step_idx: u64 = 0;
+
+// need a function to initialize perf counters, called in profiler init
+// need a function to reset hardware counters
+// need a function to snapshot hardware counters
+// need a function to return diff of two hardware counters snapshots
+// need a function to log hardware counters snapshot diff
 
 fn callFn(
     comptime returns_err: bool,
@@ -85,46 +92,8 @@ fn callFn(
 }
 
 pub fn Profiler(comptime DStruct: type, comptime ops_cfg: anytype) type {
-    const ds_info = @typeInfo(DStruct);
-    if (ds_info != .@"struct") std.debug.panic(
-        "Expected struct type. Invalid type: {s}\n",
-        .{@typeName(DStruct)},
-    );
-
-    const fns_info = @typeInfo(@TypeOf(ops_cfg));
-    if (fns_info != .@"struct") std.debug.panic(
-        "Expected struct type. Invalid type: {s}\n",
-        .{@typeName(@TypeOf(ops_cfg))},
-    );
-    const fn_count = fns_info.@"struct".fields.len;
-
-    comptime var ErrorUnion = ProfErrors || FmtErrors;
-    inline for (ops_cfg) |op_cfg| {
-        const func = op_cfg.func;
-        const fn_info = @typeInfo(@TypeOf(func)).@"fn";
-        if (fn_info.return_type) |rt| {
-            const rt_info = @typeInfo(rt);
-            switch (rt_info) {
-                .error_union => {
-                    const ErrorSet = rt_info.error_union.error_set;
-                    ErrorUnion = ErrorUnion || ErrorSet;
-                },
-                else => {},
-            }
-        }
-    }
-
-    const ops_table = blk: {
-        const FnPtr = @TypeOf(makeOp(DStruct, ops_cfg[0], ErrorUnion, callFn));
-        var array: [fn_count]FnPtr = undefined;
-
-        inline for (ops_cfg, 0..) |op_cfg, i| {
-            array[i] = makeOp(DStruct, op_cfg, ErrorUnion, callFn);
-        }
-
-        break :blk array;
-    };
-
+    const ErrorUnion = CollectErrorUnion(DStruct, ops_cfg, ProfErrors || FmtErrors);
+    const ops_table = makeOpsTable(DStruct, ops_cfg, ErrorUnion, callFn);
     return struct {
         const ops = ops_table;
 

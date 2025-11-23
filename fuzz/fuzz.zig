@@ -2,9 +2,12 @@ const std = @import("std");
 const shared = @import("shared");
 
 const makeOp = shared.makeOp.makeOp;
+const makeOpsTable = shared.makeOp.makeOpsTable;
 const logPrint = shared.log.logPrint;
 const logFmtArg = shared.log.logFmtArg;
 const setLogWriter = shared.log.setLogWriter;
+
+const CollectErrorUnion = shared.makeOp.CollectErrorUnion;
 
 const FmtErrors = shared.log.FmtErrors;
 const FuzzErrors = error{
@@ -85,46 +88,8 @@ fn callFn(
 }
 
 pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
-    const ds_info = @typeInfo(DStruct);
-    if (ds_info != .@"struct") std.debug.panic(
-        "Expected struct type. Invalid type: {s}\n",
-        .{@typeName(DStruct)},
-    );
-
-    const fns_info = @typeInfo(@TypeOf(ops_cfg));
-    if (fns_info != .@"struct") std.debug.panic(
-        "Expected struct type. Invalid type: {s}\n",
-        .{@typeName(@TypeOf(ops_cfg))},
-    );
-    const fn_count = fns_info.@"struct".fields.len;
-
-    comptime var ErrorUnion = FuzzErrors || FmtErrors;
-    inline for (ops_cfg) |op_cfg| {
-        const func = op_cfg.func;
-        const fn_info = @typeInfo(@TypeOf(func)).@"fn";
-        if (fn_info.return_type) |rt| {
-            const rt_info = @typeInfo(rt);
-            switch (rt_info) {
-                .error_union => {
-                    const ErrorSet = rt_info.error_union.error_set;
-                    ErrorUnion = ErrorUnion || ErrorSet;
-                },
-                else => {},
-            }
-        }
-    }
-
-    const ops_table = blk: {
-        const FnPtr = @TypeOf(makeOp(DStruct, ops_cfg[0], ErrorUnion, callFn));
-        var array: [fn_count]FnPtr = undefined;
-
-        inline for (ops_cfg, 0..) |op_cfg, i| {
-            array[i] = makeOp(DStruct, op_cfg, ErrorUnion, callFn);
-        }
-
-        break :blk array;
-    };
-
+    const ErrorUnion = CollectErrorUnion(DStruct, ops_cfg, FuzzErrors || FmtErrors);
+    const ops_table = makeOpsTable(DStruct, ops_cfg, ErrorUnion, callFn);
     return struct {
         const ops = ops_table;
 
