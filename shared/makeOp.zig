@@ -1,18 +1,6 @@
 const std = @import("std");
 
-pub fn CollectErrorUnion(comptime DStruct: type, comptime ops_cfg: anytype, comptime BaseErrorSet: type) type {
-    const ds_info = @typeInfo(DStruct);
-    if (ds_info != .@"struct") std.debug.panic(
-        "Expected struct type. Invalid type: {s}\n",
-        .{@typeName(DStruct)},
-    );
-
-    const fns_info = @typeInfo(@TypeOf(ops_cfg));
-    if (fns_info != .@"struct") std.debug.panic(
-        "Expected struct type. Invalid type: {s}\n",
-        .{@typeName(@TypeOf(ops_cfg))},
-    );
-
+pub fn CollectErrorUnion(comptime ops_cfg: anytype, comptime BaseErrorSet: type) type {
     comptime var ErrorUnion = BaseErrorSet;
     inline for (ops_cfg) |op_cfg| {
         const func = op_cfg.func;
@@ -45,13 +33,7 @@ fn OpsTableType(
         args: anytype,
     ) ErrorUnion!void,
 ) type {
-    const cfg_info = @typeInfo(@TypeOf(ops_cfg));
-    if (cfg_info != .@"struct") std.debug.panic(
-        "Expected struct type. Invalid type: {s}\n",
-        .{@typeName(@TypeOf(ops_cfg))},
-    );
-
-    const struct_info = cfg_info.@"struct";
+    const struct_info = @typeInfo(@TypeOf(ops_cfg)).@"struct";
     const FnPtr = @TypeOf(makeOp(DStruct, ops_cfg[0], ErrorUnion, callFn));
     return [struct_info.fields.len]FnPtr;
 }
@@ -69,20 +51,10 @@ pub fn makeOpsTable(
         args: anytype,
     ) ErrorUnion!void,
 ) OpsTableType(DStruct, ops_cfg, ErrorUnion, callFn) {
-    const cfg_info = @typeInfo(@TypeOf(ops_cfg));
-    if (cfg_info != .@"struct") std.debug.panic(
-        "Expected struct type. Invalid type: {s}\n",
-        .{@typeName(@TypeOf(ops_cfg))},
-    );
-    const struct_info = cfg_info.@"struct";
-
-    const FnPtr = @TypeOf(makeOp(DStruct, ops_cfg[0], ErrorUnion, callFn));
-    var array: [struct_info.fields.len]FnPtr = undefined;
-
+    var array: OpsTableType(DStruct, ops_cfg, ErrorUnion, callFn) = undefined;
     inline for (ops_cfg, 0..) |op_cfg, i| {
         array[i] = makeOp(DStruct, op_cfg, ErrorUnion, callFn);
     }
-
     return array;
 }
 
@@ -99,53 +71,7 @@ pub fn makeOp(
         args: anytype,
     ) ErrorUnion!void,
 ) *const fn (*DStruct, std.Random) ErrorUnion!void {
-    const func = op_cfg.func;
-    const fn_info = @typeInfo(@TypeOf(func)).@"fn";
-
-    if (fn_info.params.len > 5) std.debug.panic("Profiler currently only supports functions with up to 4 args", .{});
-
-    inline for (fn_info.params, 0..) |param, i| {
-        const T = param.type orelse std.debug.panic("Expected typed arg in func {s}", .{
-            @typeName(@TypeOf(func)),
-        });
-        const t_info = @typeInfo(T);
-        switch (t_info) {
-            .pointer => {
-                if (i != 0) std.debug.panic("Expected numerical arg type in func {s}. Invalid type: {s}\n", .{
-                    @typeName(@TypeOf(func)),
-                    @typeName(T),
-                });
-                if (T != *DStruct) std.debug.panic("Expected first arg of func {s} to be *{s}. Invald type: {s}\n", .{
-                    @typeName(@TypeOf(func)),
-                    @typeName(DStruct),
-                    @typeName(T),
-                });
-            },
-            .int, .float => {
-                if (i == 0) std.debug.panic("Expected first arg of func {s} to be *{s}. Invald type: {s}\n", .{
-                    @typeName(@TypeOf(func)),
-                    @typeName(DStruct),
-                    @typeName(T),
-                });
-            },
-            else => {
-                if (i == 0) {
-                    std.debug.panic("Expected first arg of func {s} to be *{s}. Invalid type: {s}\n", .{
-                        @typeName(@TypeOf(func)),
-                        @typeName(DStruct),
-                        @typeName(T),
-                    });
-                }
-                if (getGenerator(T, i, op_cfg) == null) {
-                    std.debug.panic("Unexpected arg type in func {s}. Invalid type: {s}. Provide a generator for this parameter.\n", .{
-                        @typeName(@TypeOf(func)),
-                        @typeName(T),
-                    });
-                }
-            },
-        }
-    }
-
+    const fn_info = @typeInfo(@TypeOf(op_cfg.func)).@"fn";
     const Op = struct {
         fn genParam(
             comptime param_idx: usize,
@@ -192,7 +118,7 @@ pub fn makeOp(
                 returns_err,
                 returns_val,
                 op_cfg.fmt,
-                func,
+                op_cfg.func,
                 ErrorUnion,
                 args,
             );
@@ -200,6 +126,74 @@ pub fn makeOp(
     };
 
     return Op.call;
+}
+
+pub fn validateOpsCfg(comptime DStruct: type, comptime ops_cfg: anytype) void {
+    const ds_info = @typeInfo(DStruct);
+    if (ds_info != .@"struct") std.debug.panic(
+        "Expected struct type. Invalid type: {s}\n",
+        .{@typeName(DStruct)},
+    );
+
+    const cfg_info = @typeInfo(@TypeOf(ops_cfg));
+    if (cfg_info != .@"struct") std.debug.panic(
+        "Expected struct type. Invalid type: {s}\n",
+        .{@typeName(@TypeOf(ops_cfg))},
+    );
+
+    inline for (ops_cfg) |op_cfg| {
+        const CfgType = @TypeOf(op_cfg);
+        if (!@hasField(CfgType, "func")) std.debug.panic("Expected Op Cfg to have a `func` field\n", .{});
+        if (!@hasField(CfgType, "fmt")) std.debug.panic("Expected Op Cfg to have a `fmt` field\n", .{});
+
+        const func = op_cfg.func;
+        const fn_info = @typeInfo(@TypeOf(func)).@"fn";
+
+        if (fn_info.params.len > 5) std.debug.panic("Profiler currently only supports functions with up to 4 args", .{});
+
+        inline for (fn_info.params, 0..) |param, i| {
+            const T = param.type orelse std.debug.panic("Expected typed arg in func {s}", .{
+                @typeName(@TypeOf(func)),
+            });
+            const t_info = @typeInfo(T);
+            switch (t_info) {
+                .pointer => {
+                    if (i != 0) std.debug.panic("Expected numerical arg type in func {s}. Invalid type: {s}\n", .{
+                        @typeName(@TypeOf(func)),
+                        @typeName(T),
+                    });
+                    if (T != *DStruct) std.debug.panic("Expected first arg of func {s} to be *{s}. Invald type: {s}\n", .{
+                        @typeName(@TypeOf(func)),
+                        @typeName(DStruct),
+                        @typeName(T),
+                    });
+                },
+                .int, .float => {
+                    if (i == 0) std.debug.panic("Expected first arg of func {s} to be *{s}. Invald type: {s}\n", .{
+                        @typeName(@TypeOf(func)),
+                        @typeName(DStruct),
+                        @typeName(T),
+                    });
+                },
+                else => {
+                    if (i == 0) {
+                        std.debug.panic("Expected first arg of func {s} to be *{s}. Invalid type: {s}\n", .{
+                            @typeName(@TypeOf(func)),
+                            @typeName(DStruct),
+                            @typeName(T),
+                        });
+                    }
+                    if (getGenerator(T, i, op_cfg) == null) {
+                        std.debug.panic("Expected a generator arg type {s} at index {} in func {s}\n", .{
+                            @typeName(T),
+                            i,
+                            @typeName(@TypeOf(func)),
+                        });
+                    }
+                },
+            }
+        }
+    }
 }
 
 fn getCallback(

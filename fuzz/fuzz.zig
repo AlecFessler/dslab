@@ -6,6 +6,7 @@ const makeOpsTable = shared.makeOp.makeOpsTable;
 const logPrint = shared.log.logPrint;
 const logFmtArg = shared.log.logFmtArg;
 const setLogWriter = shared.log.setLogWriter;
+const validateOpsCfg = shared.makeOp.validateOpsCfg;
 
 const CollectErrorUnion = shared.makeOp.CollectErrorUnion;
 
@@ -88,7 +89,8 @@ fn callFn(
 }
 
 pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
-    const ErrorUnion = CollectErrorUnion(DStruct, ops_cfg, FuzzErrors || FmtErrors);
+    validateOpsCfg(DStruct, ops_cfg);
+    const ErrorUnion = CollectErrorUnion(ops_cfg, FuzzErrors || FmtErrors);
     const ops_table = makeOpsTable(DStruct, ops_cfg, ErrorUnion, callFn);
     return struct {
         const ops = ops_table;
