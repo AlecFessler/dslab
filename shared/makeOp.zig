@@ -1,5 +1,59 @@
 const std = @import("std");
 
+pub fn parseOpsCfg(
+    comptime DStruct: type,
+    comptime ops_cfg: anytype,
+    comptime BaseErrors: type,
+    comptime callFn: *const fn (
+        comptime returns_err: bool,
+        comptime returns_val: bool,
+        comptime fmt: []const u8,
+        comptime func: anytype,
+        comptime ErrorUnion: type,
+        args: anytype,
+    ) ErrorUnion!void,
+) type {
+    const ds_info = @typeInfo(DStruct);
+    if (ds_info != .@"struct") std.debug.panic(
+        "Expected struct type. Invalid type: {s}\n",
+        .{@typeName(DStruct)},
+    );
+
+    const fns_info = @typeInfo(@TypeOf(ops_cfg));
+    if (fns_info != .@"struct") std.debug.panic(
+        "Expected struct type. Invalid type: {s}\n",
+        .{@typeName(@TypeOf(ops_cfg))},
+    );
+    const fn_count = fns_info.@"struct".fields.len;
+
+    comptime var ErrorUnion = BaseErrors;
+    inline for (ops_cfg) |op_cfg| {
+        const func = op_cfg.func;
+        const fn_info = @typeInfo(@TypeOf(func)).@"fn";
+        if (fn_info.return_type) |rt| {
+            const rt_info = @typeInfo(rt);
+            switch (rt_info) {
+                .error_union => {
+                    const ErrorSet = rt_info.error_union.error_set;
+                    ErrorUnion = ErrorUnion || ErrorSet;
+                },
+                else => {},
+            }
+        }
+    }
+
+    const ops_table = blk: {
+        const FnPtr = @TypeOf(makeOp(DStruct, ops_cfg[0], ErrorUnion, callFn));
+        var array: [fn_count]FnPtr = undefined;
+
+        inline for (ops_cfg, 0..) |op_cfg, i| {
+            array[i] = makeOp(DStruct, op_cfg, ErrorUnion, callFn);
+        }
+
+        break :blk array;
+    };
+}
+
 pub fn makeOp(
     comptime DStruct: type,
     comptime op_cfg: anytype,

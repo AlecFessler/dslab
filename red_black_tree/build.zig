@@ -8,8 +8,8 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const makeOp_mod = b.createModule(.{
-        .root_source_file = b.path("../shared/makeOp.zig"),
+    const shared_mod = b.createModule(.{
+        .root_source_file = b.path("../shared/shared.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -20,7 +20,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        fuzz_mod.addImport("makeOp", makeOp_mod);
+        fuzz_mod.addImport("shared", shared_mod);
 
         const exe = b.addExecutable(.{
             .name = "fuzz_rbt.exe",
@@ -40,7 +40,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        prof_mod.addImport("makeOp", makeOp_mod);
+        prof_mod.addImport("shared", shared_mod);
 
         const exe = b.addExecutable(.{
             .name = "prof_rbt.exe",

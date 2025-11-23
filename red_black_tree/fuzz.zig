@@ -36,10 +36,11 @@ pub fn main() !void {
     const allocator = dbg_alloc.allocator();
     var argsIter = try std.process.ArgIterator.initWithAllocator(allocator);
 
+    const base_10 = 10;
     while (argsIter.next()) |arg| {
         if (std.mem.eql(u8, arg, "-i")) {
             if (argsIter.next()) |iters| {
-                iterations = try std.fmt.parseInt(u64, iters, 10);
+                iterations = try std.fmt.parseInt(u64, iters, base_10);
             }
         } else if (std.mem.eql(u8, arg, "-o")) {
             if (argsIter.next()) |path| {
@@ -47,7 +48,7 @@ pub fn main() !void {
             }
         } else if (std.mem.eql(u8, arg, "-s")) {
             if (argsIter.next()) |s| {
-                seed = try std.fmt.parseInt(u64, s, 10);
+                seed = try std.fmt.parseInt(u64, s, base_10);
             }
         } else continue;
     }
@@ -55,14 +56,14 @@ pub fn main() !void {
     var file = try std.fs.cwd().createFile(log_path, .{ .truncate = true });
     defer file.close();
 
-    const buffer = try allocator.alloc(u8, 4 * 4096);
+    const four_KiB = 4 * 4096;
+    const buffer = try allocator.alloc(u8, four_KiB);
     var file_writer = file.writer(buffer);
     const w = &file_writer.interface;
     defer w.flush() catch {};
-    fuzz.setLogWriter(w);
 
     var rbt = RedBlackTree.init();
-    var fuzzer = Fuzzer.init(validate, &rbt, seed);
+    var fuzzer = Fuzzer.init(validate, &rbt, seed, w);
     for (0..iterations) |_| {
         fuzzer.step() catch |err| {
             switch (err) {

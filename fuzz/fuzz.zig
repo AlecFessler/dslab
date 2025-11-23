@@ -1,14 +1,16 @@
 const std = @import("std");
-const makeOp_mod = @import("makeOp");
+const shared = @import("shared");
 
-const makeOp = makeOp_mod.makeOp;
+const makeOp = shared.makeOp.makeOp;
+const logPrint = shared.log.logPrint;
+const logFmtArg = shared.log.logFmtArg;
+const setLogWriter = shared.log.setLogWriter;
 
+const FmtErrors = shared.log.FmtErrors;
 const FuzzErrors = error{
     DetectedInvalidState,
-    FmtParseError,
 };
 
-pub var log_writer: ?*std.Io.Writer = null;
 pub var rng: std.Random.DefaultPrng = undefined;
 pub var step_idx: u64 = 0;
 
@@ -82,52 +84,6 @@ fn callFn(
     }
 }
 
-fn logFmtArg(fmt_slice: []const u8, value: anytype) FuzzErrors!void {
-    const T = @TypeOf(value);
-    if (@typeInfo(T) == .void) return;
-
-    if (!std.mem.startsWith(u8, fmt_slice, "{") or
-        !std.mem.endsWith(u8, fmt_slice, "}"))
-        return error.FmtParseError;
-
-    const inner = fmt_slice[1 .. fmt_slice.len - 1];
-
-    if (std.mem.eql(u8, inner, "")) {
-        logPrint("{}", .{value});
-        return;
-    }
-
-    if (std.mem.eql(u8, inner, "x")) {
-        switch (@typeInfo(T)) {
-            .int => {
-                logPrint("{x}", .{value});
-                return;
-            },
-            else => return error.FmtParseError,
-        }
-    }
-
-    if (std.mem.eql(u8, inner, "s")) {
-        switch (@typeInfo(T)) {
-            .pointer, .array => {
-                logPrint("{s}", .{value});
-                return;
-            },
-            else => return error.FmtParseError,
-        }
-    }
-
-    return error.FmtParseError;
-}
-
-pub fn logPrint(comptime fmt: []const u8, args: anytype) void {
-    if (log_writer) |w| {
-        w.print(fmt, args) catch |err| {
-            std.debug.panic("log writer failed: {}\n", .{err});
-        };
-    }
-}
-
 pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
     const ds_info = @typeInfo(DStruct);
     if (ds_info != .@"struct") std.debug.panic(
@@ -142,7 +98,7 @@ pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
     );
     const fn_count = fns_info.@"struct".fields.len;
 
-    comptime var ErrorUnion = FuzzErrors;
+    comptime var ErrorUnion = FuzzErrors || FmtErrors;
     inline for (ops_cfg) |op_cfg| {
         const func = op_cfg.func;
         const fn_info = @typeInfo(@TypeOf(func)).@"fn";
@@ -179,7 +135,9 @@ pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
             comptime validate: *const fn (*DStruct) bool,
             ds: *DStruct,
             seed: u64,
+            w: *std.Io.Writer,
         ) @This() {
+            setLogWriter(w);
             rng = std.Random.DefaultPrng.init(seed);
             return .{
                 .ds = ds,
@@ -195,8 +153,4 @@ pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
             if (!self.validate(self.ds)) return error.DetectedInvalidState;
         }
     };
-}
-
-pub fn setLogWriter(writer: *std.Io.Writer) void {
-    log_writer = writer;
 }
