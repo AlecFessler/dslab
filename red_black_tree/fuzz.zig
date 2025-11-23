@@ -1,5 +1,5 @@
 const std = @import("std");
-const fuzzlib = @import("fuzzlib");
+const fuzz = @import("fuzz");
 const rbt_mod = @import("red_black_tree.zig");
 
 const RedBlackTree = rbt_mod.RedBlackTree(u64, cmpFn, false);
@@ -8,7 +8,7 @@ var dbg_alloc = std.heap.DebugAllocator(.{}){};
 var list: std.ArrayList(u64) = .empty;
 
 pub fn main() !void {
-    const Fuzzer = fuzzlib.Fuzzer(RedBlackTree, .{
+    const Fuzzer = fuzz.Fuzzer(RedBlackTree, .{
         .{
             .func = RedBlackTree.insert,
             .fmt = "insert {}, {} -> !",
@@ -59,7 +59,7 @@ pub fn main() !void {
     var file_writer = file.writer(buffer);
     const w = &file_writer.interface;
     defer w.flush() catch {};
-    fuzzlib.setLogWriter(w);
+    fuzz.setLogWriter(w);
 
     var rbt = RedBlackTree.init();
     var fuzzer = Fuzzer.init(validate, &rbt, seed);
@@ -93,7 +93,7 @@ fn allocatorGenerator() std.mem.Allocator {
 
 fn removeInputGenerator() u64 {
     if (list.items.len == 0) return 0;
-    const rand = fuzzlib.rng.random();
+    const rand = fuzz.rng.random();
     const idx = rand.intRangeLessThan(usize, 0, list.items.len);
     return list.swapRemove(idx);
 }
