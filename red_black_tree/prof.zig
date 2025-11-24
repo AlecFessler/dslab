@@ -63,7 +63,8 @@ pub fn main() !void {
     defer w.flush() catch {};
 
     var rbt = RedBlackTree.init();
-    var profiler = Profiler.init(&rbt, seed, w);
+    var profiler = try Profiler.init(&rbt, seed, w);
+    defer profiler.deinit();
     for (0..iterations) |_| {
         profiler.step() catch |err| {
             switch (err) {

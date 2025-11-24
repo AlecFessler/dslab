@@ -19,15 +19,18 @@ pub var rng: std.Random.DefaultPrng = undefined;
 pub var step_idx: u64 = 0;
 
 fn callFn(
-    comptime returns_err: bool,
-    comptime returns_val: bool,
     comptime fmt: []const u8,
     comptime func: anytype,
     comptime ErrorUnion: type,
     args: anytype,
 ) ErrorUnion!void {
     const fn_info = @typeInfo(@TypeOf(func)).@"fn";
-    const ReturnType = if (fn_info.return_type) |rt| rt else void;
+    const returns_val = comptime fn_info.return_type != null;
+    const returns_err = comptime blk: {
+        if (fn_info.return_type) |rt| {
+            break :blk @typeInfo(rt) == .error_union;
+        } else break :blk false;
+    };
 
     var r = std.io.Reader.fixed(fmt);
     const fn_name = r.takeDelimiterExclusive(' ') catch return error.FmtParseError;
@@ -59,7 +62,7 @@ fn callFn(
             return err;
         };
 
-        if (ReturnType != void) {
+        if (returns_val) {
             _ = r.discardDelimiterInclusive('!') catch return error.FmtParseError;
 
             const remaining = r.peek(1) catch &[_]u8{};

@@ -25,8 +25,6 @@ fn OpsTableType(
     comptime ops_cfg: anytype,
     comptime ErrorUnion: type,
     comptime callFn: *const fn (
-        comptime returns_err: bool,
-        comptime returns_val: bool,
         comptime fmt: []const u8,
         comptime func: anytype,
         comptime ErrorUnion: type,
@@ -43,8 +41,6 @@ pub fn makeOpsTable(
     comptime ops_cfg: anytype,
     comptime ErrorUnion: type,
     comptime callFn: *const fn (
-        comptime returns_err: bool,
-        comptime returns_val: bool,
         comptime fmt: []const u8,
         comptime func: anytype,
         comptime ErrorUnion: type,
@@ -63,8 +59,6 @@ pub fn makeOp(
     comptime op_cfg: anytype,
     comptime ErrorUnion: type,
     comptime callFn: *const fn (
-        comptime returns_err: bool,
-        comptime returns_val: bool,
         comptime fmt: []const u8,
         comptime func: anytype,
         comptime ErrorUnion: type,
@@ -90,13 +84,6 @@ pub fn makeOp(
             ds: *DStruct,
             rand: std.Random,
         ) ErrorUnion!void {
-            const returns_val = comptime fn_info.return_type != null;
-            const returns_err = comptime blk: {
-                if (fn_info.return_type) |rt| {
-                    break :blk @typeInfo(rt) == .error_union;
-                } else break :blk false;
-            };
-
             const args = blk: {
                 const num_params = fn_info.params.len;
                 if (num_params == 1) break :blk .{ds};
@@ -115,8 +102,6 @@ pub fn makeOp(
             };
 
             try callFn(
-                returns_err,
-                returns_val,
                 op_cfg.fmt,
                 op_cfg.func,
                 ErrorUnion,
