@@ -78,21 +78,19 @@ fn callFn(
     var snap_before: Snapshot = undefined;
     var snap_after: Snapshot = undefined;
 
-    defer {
-        const diff = diffSnapshots(snap_before, snap_after);
-        logPrint(" PERF cycles={} instructions={} cache-misses={} branch-misses={}\n", .{
-            diff.values[0],
-            diff.values[1],
-            diff.values[2],
-            diff.values[3],
-        });
-    }
-
     if (returns_err) {
         snap_before = try snapshot();
         const ret = @call(.auto, func, args) catch |err| {
             snap_after = try snapshot();
             logPrint(" = {}", .{err});
+
+            const diff = diffSnapshots(snap_before, snap_after);
+            logPrint(" PERF cycles={} instructions={} cache-misses={} branch-misses={}\n", .{
+                diff.values[0],
+                diff.values[1],
+                diff.values[2],
+                diff.values[3],
+            });
             return err;
         };
         snap_after = try snapshot();
@@ -124,6 +122,14 @@ fn callFn(
         @call(.auto, func, args);
         snap_after = try snapshot();
     }
+
+    const diff = diffSnapshots(snap_before, snap_after);
+    logPrint(" PERF cycles={} instructions={} cache-misses={} branch-misses={}\n", .{
+        diff.values[0],
+        diff.values[1],
+        diff.values[2],
+        diff.values[3],
+    });
 }
 
 fn openPerfEvent(
