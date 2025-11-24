@@ -23,6 +23,7 @@ const HWCounter = enum(u64) {
     instructions = @intFromEnum(std.os.linux.PERF.COUNT.HW.INSTRUCTIONS),
     cache_misses = @intFromEnum(std.os.linux.PERF.COUNT.HW.CACHE_MISSES),
     branch_misses = @intFromEnum(std.os.linux.PERF.COUNT.HW.BRANCH_MISSES),
+    branch_instructions = @intFromEnum(std.os.linux.PERF.COUNT.HW.BRANCH_INSTRUCTIONS),
 };
 
 const Snapshot = struct {
@@ -36,6 +37,14 @@ pub var rng: std.Random.DefaultPrng = undefined;
 pub var step_idx: u64 = 0;
 
 var counter_fds: [NUM_COUNTERS]std.os.linux.fd_t = undefined;
+
+fn logDiff(diff: Snapshot) void {
+    logPrint(" PERF", .{});
+    inline for (@typeInfo(HWCounter).@"enum".fields, 0..) |field, i| {
+        logPrint(" {s}={}", .{ field.name, diff.values[i] });
+    }
+    logPrint("\n", .{});
+}
 
 fn callFn(
     comptime fmt: []const u8,
@@ -85,12 +94,7 @@ fn callFn(
             logPrint(" = {}", .{err});
 
             const diff = diffSnapshots(snap_before, snap_after);
-            logPrint(" PERF cycles={} instructions={} cache-misses={} branch-misses={}\n", .{
-                diff.values[0],
-                diff.values[1],
-                diff.values[2],
-                diff.values[3],
-            });
+            logDiff(diff);
             return err;
         };
         snap_after = try snapshot();
@@ -124,12 +128,7 @@ fn callFn(
     }
 
     const diff = diffSnapshots(snap_before, snap_after);
-    logPrint(" PERF cycles={} instructions={} cache-misses={} branch-misses={}\n", .{
-        diff.values[0],
-        diff.values[1],
-        diff.values[2],
-        diff.values[3],
-    });
+    logDiff(diff);
 }
 
 fn openPerfEvent(

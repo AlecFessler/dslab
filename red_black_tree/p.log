@@ -1,20 +1,20 @@
-#1: remove(allocator, 0) = error.NotFound PERF cycles=1370 instructions=315 cache-misses=43 branch-misses=12
-#2: remove(allocator, 0) = error.NotFound PERF cycles=657 instructions=315 cache-misses=1 branch-misses=5
-#3: insert(allocator, 13765271635752736470) PERF cycles=18149 instructions=14133 cache-misses=89 branch-misses=181
-#4: insert(allocator, 10892412867582108485) PERF cycles=15881 instructions=12632 cache-misses=63 branch-misses=174
-#5: remove(allocator, 10892412867582108485) = 10892412867582108485 PERF cycles=18760 instructions=12772 cache-misses=140 branch-misses=175
-#6: insert(allocator, 2477283028068920342) PERF cycles=14278 instructions=12632 cache-misses=8 branch-misses=158
-#7: remove(allocator, 13765271635752736470) = 13765271635752736470 PERF cycles=13757 instructions=12665 cache-misses=29 branch-misses=151
-#8: insert(allocator, 7278725533440954441) PERF cycles=14727 instructions=12705 cache-misses=18 branch-misses=163
-#9: insert(allocator, 2884092293074692283) PERF cycles=16337 instructions=13858 cache-misses=39 branch-misses=175
-#10: remove(allocator, 7278725533440954441) = 7278725533440954441 PERF cycles=13535 instructions=12777 cache-misses=6 branch-misses=155
-#11: remove(allocator, 2884092293074692283) = 2884092293074692283 PERF cycles=13230 instructions=12665 cache-misses=7 branch-misses=146
-#12: insert(allocator, 14645621260580619786) PERF cycles=14284 instructions=12705 cache-misses=0 branch-misses=157
-#13: insert(allocator, 7627105703721172900) PERF cycles=15463 instructions=13858 cache-misses=0 branch-misses=170
-#14: insert(allocator, 11119034730948704880) PERF cycles=14521 instructions=13143 cache-misses=0 branch-misses=161
-#15: insert(allocator, 18115970067406137490) PERF cycles=14166 instructions=12720 cache-misses=0 branch-misses=160
-#16: remove(allocator, 11119034730948704880) = 11119034730948704880 PERF cycles=13551 instructions=12852 cache-misses=0 branch-misses=154
-#17: remove(allocator, 7627105703721172900) = 7627105703721172900 PERF cycles=13513 instructions=12794 cache-misses=5 branch-misses=149
-#18: remove(allocator, 14645621260580619786) = 14645621260580619786 PERF cycles=14211 instructions=13063 cache-misses=27 branch-misses=152
-#19: remove(allocator, 2477283028068920342) = 2477283028068920342 PERF cycles=13479 instructions=12772 cache-misses=0 branch-misses=147
-#20: insert(allocator, 13544632058761996522) PERF cycles=14245 instructions=12632 cache-misses=0 branch-misses=157
+#1: remove(allocator, 0) = error.NotFound PERF cycles=2218 instructions=315 cache_misses=40 branch_misses=12 branch_instructions=42
+#2: remove(allocator, 0) = error.NotFound PERF cycles=598 instructions=315 cache_misses=0 branch_misses=5 branch_instructions=42
+#3: insert(allocator, 13765271635752736470) PERF cycles=19260 instructions=14133 cache_misses=83 branch_misses=182 branch_instructions=2268
+#4: insert(allocator, 10892412867582108485) PERF cycles=15643 instructions=12632 cache_misses=59 branch_misses=170 branch_instructions=1980
+#5: remove(allocator, 10892412867582108485) = 10892412867582108485 PERF cycles=18516 instructions=12772 cache_misses=151 branch_misses=178 branch_instructions=2079
+#6: insert(allocator, 2477283028068920342) PERF cycles=13979 instructions=12632 cache_misses=2 branch_misses=159 branch_instructions=1980
+#7: remove(allocator, 13765271635752736470) = 13765271635752736470 PERF cycles=13463 instructions=12665 cache_misses=22 branch_misses=152 branch_instructions=2051
+#8: insert(allocator, 7278725533440954441) PERF cycles=14746 instructions=12705 cache_misses=25 branch_misses=171 branch_instructions=1998
+#9: insert(allocator, 2884092293074692283) PERF cycles=16862 instructions=13858 cache_misses=28 branch_misses=182 branch_instructions=2219
+#10: remove(allocator, 7278725533440954441) = 7278725533440954441 PERF cycles=13484 instructions=12777 cache_misses=4 branch_misses=156 branch_instructions=2082
+#11: remove(allocator, 2884092293074692283) = 2884092293074692283 PERF cycles=13368 instructions=12665 cache_misses=0 branch_misses=147 branch_instructions=2051
+#12: insert(allocator, 14645621260580619786) PERF cycles=14432 instructions=12705 cache_misses=0 branch_misses=168 branch_instructions=1998
+#13: insert(allocator, 7627105703721172900) PERF cycles=15280 instructions=13858 cache_misses=0 branch_misses=178 branch_instructions=2219
+#14: insert(allocator, 11119034730948704880) PERF cycles=14483 instructions=13143 cache_misses=0 branch_misses=160 branch_instructions=2083
+#15: insert(allocator, 18115970067406137490) PERF cycles=14136 instructions=12720 cache_misses=0 branch_misses=165 branch_instructions=2002
+#16: remove(allocator, 11119034730948704880) = 11119034730948704880 PERF cycles=13394 instructions=12852 cache_misses=1 branch_misses=156 branch_instructions=2098
+#17: remove(allocator, 7627105703721172900) = 7627105703721172900 PERF cycles=13499 instructions=12794 cache_misses=5 branch_misses=151 branch_instructions=2077
+#18: remove(allocator, 14645621260580619786) = 14645621260580619786 PERF cycles=14240 instructions=13063 cache_misses=31 branch_misses=158 branch_instructions=2131
+#19: remove(allocator, 2477283028068920342) = 2477283028068920342 PERF cycles=13286 instructions=12772 cache_misses=1 branch_misses=153 branch_instructions=2079
+#20: insert(allocator, 13544632058761996522) PERF cycles=14235 instructions=12632 cache_misses=0 branch_misses=165 branch_instructions=1980
