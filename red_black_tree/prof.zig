@@ -12,6 +12,7 @@ pub fn main() !void {
         .{
             .func = RedBlackTree.insert,
             .fmt = "insert {}, {} -> !",
+            .priority = 3,
             .callbacks = .{
                 .{ .param_idx = 2, .callback = insertCallback },
             },
@@ -22,6 +23,7 @@ pub fn main() !void {
         .{
             .func = RedBlackTree.remove,
             .fmt = "remove {}, {} -> !{}",
+            .priority = 2,
             .generators = .{
                 .{ .param_idx = 1, .generator = allocatorGenerator },
                 .{ .param_idx = 2, .generator = removeInputGenerator },

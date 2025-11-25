@@ -54,7 +54,31 @@ pub fn makeOpsTable(
     return array;
 }
 
-pub fn makeOp(
+fn PriorityTableType(comptime ops_cfg: anytype) type {
+    const struct_info = @typeInfo(@TypeOf(ops_cfg)).@"struct";
+    return [struct_info.fields.len]f32;
+}
+
+pub fn makePriorityTable(comptime ops_cfg: anytype) PriorityTableType(ops_cfg) {
+    var weights: PriorityTableType(ops_cfg) = undefined;
+    const N = weights.len;
+    var sum: f32 = 0.0;
+
+    inline for (ops_cfg, 0..) |op, i| {
+        const w: f32 = @floatFromInt(op.priority);
+        weights[i] = w;
+        sum += w;
+    }
+
+    var probs: [N]f32 = undefined;
+    inline for (weights, 0..) |w, i| {
+        probs[i] = w / sum;
+    }
+
+    return probs;
+}
+
+fn makeOp(
     comptime DStruct: type,
     comptime op_cfg: anytype,
     comptime ErrorUnion: type,

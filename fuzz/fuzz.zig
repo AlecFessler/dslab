@@ -3,6 +3,7 @@ const shared = @import("shared");
 
 const makeOp = shared.makeOp.makeOp;
 const makeOpsTable = shared.makeOp.makeOpsTable;
+const makePriorityTable = shared.makeOp.makePriorityTable;
 const logPrint = shared.log.logPrint;
 const logFmtArg = shared.log.logFmtArg;
 const setLogWriter = shared.log.setLogWriter;
@@ -95,8 +96,10 @@ pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
     validateOpsCfg(DStruct, ops_cfg);
     const ErrorUnion = CollectErrorUnion(ops_cfg, FuzzErrors || FmtErrors);
     const ops_table = makeOpsTable(DStruct, ops_cfg, ErrorUnion, callFn);
+    const priority_table = makePriorityTable(ops_cfg);
     return struct {
         const ops = ops_table;
+        const priorities = priority_table;
 
         ds: *DStruct,
         validate: *const fn (*DStruct) bool,
@@ -116,9 +119,19 @@ pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
         }
 
         pub fn step(self: *@This()) ErrorUnion!void {
-            const rand = rng.random();
-            const idx = rand.intRangeLessThan(usize, 0, ops.len);
             step_idx += 1;
+            const rand = rng.random();
+            const idx = blk: {
+                const u = rand.float(f32);
+                var acc: f32 = 0.0;
+
+                for (priorities, 0..) |p, i| {
+                    acc += p;
+                    if (u < acc) break :blk i;
+                }
+
+                break :blk priorities.len - 1;
+            };
             try ops[idx](self.ds, rand);
             if (!self.validate(self.ds)) return error.DetectedInvalidState;
         }
