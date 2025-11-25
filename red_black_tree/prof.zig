@@ -11,7 +11,7 @@ pub fn main() !void {
     const Profiler = prof.Profiler(RedBlackTree, .{
         .{
             .func = RedBlackTree.insert,
-            .fmt = "insert {}, {} -> !",
+            .fmt = "insert {}, {}, {} -> !",
             .priority = 3,
             .callbacks = .{
                 .{ .param_idx = 2, .callback = insertCallback },
@@ -22,7 +22,7 @@ pub fn main() !void {
         },
         .{
             .func = RedBlackTree.remove,
-            .fmt = "remove {}, {} -> !{}",
+            .fmt = "remove {}, {}, {} -> !{}",
             .priority = 2,
             .generators = .{
                 .{ .param_idx = 1, .generator = allocatorGenerator },

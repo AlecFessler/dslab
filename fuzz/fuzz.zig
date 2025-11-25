@@ -33,28 +33,15 @@ fn callFn(
         } else break :blk false;
     };
 
+    const space = comptime std.mem.indexOfScalar(u8, fmt, ' ') orelse std.debug.panic("Fmt string must have a space following the name");
+    const arrow = comptime std.mem.indexOf(u8, fmt, "->") orelse fmt.len;
+    const arg_fmt = comptime fmt[space + 1 .. arrow];
+
     var r = std.io.Reader.fixed(fmt);
     const fn_name = r.takeDelimiterExclusive(' ') catch return error.FmtParseError;
 
     logPrint("#{}: {s}(", .{ step_idx, fn_name });
-
-    const args_info = @typeInfo(@TypeOf(args));
-    if (args_info.@"struct".fields.len > 1) {
-        inline for (args_info.@"struct".fields[1..], 0..) |field, i| {
-            if (i > 0) logPrint(", ", .{});
-
-            _ = r.discardDelimiterExclusive('{') catch return error.FmtParseError;
-            const arg_fmt = r.takeDelimiterInclusive('}') catch return error.FmtParseError;
-
-            if (field.type == std.mem.Allocator) {
-                logPrint("allocator", .{});
-            } else {
-                const v = @field(args, field.name);
-                try logFmtArg(arg_fmt, v);
-            }
-        }
-    }
-
+    logPrint(arg_fmt, args);
     logPrint(")", .{});
 
     if (returns_err) {
