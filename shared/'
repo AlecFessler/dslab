@@ -29,7 +29,7 @@ fn OpsTableType(
     comptime ops_cfg: anytype,
 ) type {
     const struct_info = @typeInfo(@TypeOf(ops_cfg)).@"struct";
-    const FnPtr = @TypeOf(makeOp(CtxType, ErrorUnion, ops_cfg[0]));
+    const FnPtr = @TypeOf(makeOp(CtxType ops_cfg[0], ErrorUnion));
     return [struct_info.fields.len]FnPtr;
 }
 

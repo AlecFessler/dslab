@@ -20,8 +20,8 @@ pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
     validateOpsCfg(DStruct, ops_cfg);
     return struct {
         const Self = @This();
-        const ErrorUnion = CollectErrorUnion(ops_cfg, FuzzErrors || FmtErrors);
-        const ops_table = makeOpsTable(Self, DStruct, ops_cfg, ErrorUnion);
+        const ErrorUnion = CollectErrorUnion(FuzzErrors || FmtErrors, ops_cfg);
+        const ops_table = makeOpsTable(Self, ErrorUnion, ops_cfg);
         const priority_table = makePriorityTable(ops_cfg);
 
         const ops = ops_table;
@@ -122,7 +122,7 @@ pub fn Fuzzer(comptime DStruct: type, comptime ops_cfg: anytype) type {
 
                 break :blk priorities.len - 1;
             };
-            try ops[idx](self, self.ds, rand);
+            try ops[idx](self);
         }
     };
 }
