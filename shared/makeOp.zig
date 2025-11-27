@@ -21,35 +21,25 @@ pub fn CollectErrorUnion(comptime ops_cfg: anytype, comptime BaseErrorSet: type)
 }
 
 fn OpsTableType(
+    comptime CtxType: type,
     comptime DStruct: type,
     comptime ops_cfg: anytype,
     comptime ErrorUnion: type,
-    comptime callFn: *const fn (
-        comptime fmt: []const u8,
-        comptime func: anytype,
-        comptime ErrorUnion: type,
-        args: anytype,
-    ) ErrorUnion!void,
 ) type {
     const struct_info = @typeInfo(@TypeOf(ops_cfg)).@"struct";
-    const FnPtr = @TypeOf(makeOp(DStruct, ops_cfg[0], ErrorUnion, callFn));
+    const FnPtr = @TypeOf(makeOp(CtxType, DStruct, ops_cfg[0], ErrorUnion));
     return [struct_info.fields.len]FnPtr;
 }
 
 pub fn makeOpsTable(
+    comptime CtxType: type,
     comptime DStruct: type,
     comptime ops_cfg: anytype,
     comptime ErrorUnion: type,
-    comptime callFn: *const fn (
-        comptime fmt: []const u8,
-        comptime func: anytype,
-        comptime ErrorUnion: type,
-        args: anytype,
-    ) ErrorUnion!void,
-) OpsTableType(DStruct, ops_cfg, ErrorUnion, callFn) {
-    var array: OpsTableType(DStruct, ops_cfg, ErrorUnion, callFn) = undefined;
+) OpsTableType(CtxType, DStruct, ops_cfg, ErrorUnion) {
+    var array: OpsTableType(CtxType, DStruct, ops_cfg, ErrorUnion) = undefined;
     inline for (ops_cfg, 0..) |op_cfg, i| {
-        array[i] = makeOp(DStruct, op_cfg, ErrorUnion, callFn);
+        array[i] = makeOp(CtxType, DStruct, op_cfg, ErrorUnion);
     }
     return array;
 }
@@ -61,7 +51,6 @@ fn PriorityTableType(comptime ops_cfg: anytype) type {
 
 pub fn makePriorityTable(comptime ops_cfg: anytype) PriorityTableType(ops_cfg) {
     var weights: PriorityTableType(ops_cfg) = undefined;
-    const N = weights.len;
     var sum: f32 = 0.0;
 
     inline for (ops_cfg, 0..) |op, i| {
@@ -70,7 +59,7 @@ pub fn makePriorityTable(comptime ops_cfg: anytype) PriorityTableType(ops_cfg) {
         sum += w;
     }
 
-    var probs: [N]f32 = undefined;
+    var probs: [weights.len]f32 = undefined;
     inline for (weights, 0..) |w, i| {
         probs[i] = w / sum;
     }
@@ -79,16 +68,11 @@ pub fn makePriorityTable(comptime ops_cfg: anytype) PriorityTableType(ops_cfg) {
 }
 
 fn makeOp(
+    comptime CtxType: type,
     comptime DStruct: type,
     comptime op_cfg: anytype,
     comptime ErrorUnion: type,
-    comptime callFn: *const fn (
-        comptime fmt: []const u8,
-        comptime func: anytype,
-        comptime ErrorUnion: type,
-        args: anytype,
-    ) ErrorUnion!void,
-) *const fn (*DStruct, std.Random) ErrorUnion!void {
+) *const fn (*CtxType, *DStruct, std.Random) ErrorUnion!void {
     const fn_info = @typeInfo(@TypeOf(op_cfg.func)).@"fn";
     const Op = struct {
         fn genParam(
@@ -105,6 +89,7 @@ fn makeOp(
         }
 
         fn call(
+            ctx: *CtxType,
             ds: *DStruct,
             rand: std.Random,
         ) ErrorUnion!void {
@@ -125,10 +110,9 @@ fn makeOp(
                 if (num_params == 5) break :blk .{ ds, a, b, c, d };
             };
 
-            try callFn(
+            try ctx.callFn(
                 op_cfg.fmt,
                 op_cfg.func,
-                ErrorUnion,
                 args,
             );
         }
