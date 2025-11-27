@@ -6,6 +6,7 @@ const RedBlackTree = rbt_mod.RedBlackTree(u64, cmpFn, false);
 
 var dbg_alloc = std.heap.DebugAllocator(.{}){};
 var list: std.ArrayList(u64) = .empty;
+var rng: std.Random.DefaultPrng = undefined;
 
 pub fn main() !void {
     const Profiler = prof.Profiler(RedBlackTree, .{
@@ -55,6 +56,8 @@ pub fn main() !void {
         } else continue;
     }
 
+    rng = std.Random.DefaultPrng.init(seed);
+
     var file = try std.fs.cwd().createFile(log_path, .{ .truncate = true });
     defer file.close();
 
@@ -97,7 +100,7 @@ fn allocatorGenerator() std.mem.Allocator {
 
 fn removeInputGenerator() u64 {
     if (list.items.len == 0) return 0;
-    const rand = prof.rng.random();
+    const rand = rng.random();
     const idx = rand.intRangeLessThan(usize, 0, list.items.len);
     return list.swapRemove(idx);
 }
