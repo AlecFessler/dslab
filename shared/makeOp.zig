@@ -74,41 +74,25 @@ fn makeOp(
     comptime op_cfg: anytype,
 ) *const fn (*CtxType) ErrorUnion!void {
     const fn_info = @typeInfo(@TypeOf(op_cfg.func)).@"fn";
+    const Args = std.meta.ArgsTuple(@TypeOf(op_cfg.func));
     const Op = struct {
-        fn genParam(
-            comptime param_idx: usize,
-            rand: std.Random,
-        ) fn_info.params[param_idx].type.? {
-            const ParamType = fn_info.params[param_idx].type.?;
-            const val = if (getGenerator(ParamType, param_idx, op_cfg)) |genInput|
-                genInput()
-            else
-                genRandNum(ParamType, rand);
-            if (getCallback(ParamType, param_idx, op_cfg)) |cb| cb(val);
-            return val;
-        }
-
         fn call(
             ctx: *CtxType,
         ) ErrorUnion!void {
-            const args = blk: {
-                const rand = ctx.rng.random();
+            var args: Args = undefined;
+            args[0] = ctx.ds;
 
-                const num_params = fn_info.params.len;
-                if (num_params == 1) break :blk .{ctx.ds};
+            const rand = ctx.rng.random();
 
-                const a = genParam(1, rand);
-                if (num_params == 2) break :blk .{ ctx.ds, a };
-
-                const b = genParam(2, rand);
-                if (num_params == 3) break :blk .{ ctx.ds, a, b };
-
-                const c = genParam(3, rand);
-                if (num_params == 4) break :blk .{ ctx.ds, a, b, c };
-
-                const d = genParam(4, rand);
-                if (num_params == 5) break :blk .{ ctx.ds, a, b, c, d };
-            };
+            inline for (fn_info.params[1..], 1..) |param, i| {
+                const ParamType = param.type.?;
+                const val = if (getGenerator(ParamType, i, op_cfg)) |genInput|
+                    genInput()
+                else
+                    genRandNum(ParamType, rand);
+                if (getCallback(ParamType, i, op_cfg)) |cb| cb(val);
+                args[i] = val;
+            }
 
             try ctx.callFn(
                 op_cfg.fmt,
@@ -141,8 +125,6 @@ pub fn validateOpsCfg(comptime DStruct: type, comptime ops_cfg: anytype) void {
 
         const func = op_cfg.func;
         const fn_info = @typeInfo(@TypeOf(func)).@"fn";
-
-        if (fn_info.params.len > 5) std.debug.panic("Profiler currently only supports functions with up to 4 args", .{});
 
         inline for (fn_info.params, 0..) |param, i| {
             const T = param.type orelse std.debug.panic("Expected typed arg in func {s}", .{
