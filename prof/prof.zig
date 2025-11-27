@@ -1,11 +1,12 @@
 const std = @import("std");
 const shared = @import("shared");
 
+const logPrint = shared.log.logPrint;
+const logFmtArg = shared.log.logFmtArg;
 const makeOp = shared.makeOp.makeOp;
 const makeOpsTable = shared.makeOp.makeOpsTable;
 const makePriorityTable = shared.makeOp.makePriorityTable;
-const logPrint = shared.log.logPrint;
-const logFmtArg = shared.log.logFmtArg;
+const parseFmt = shared.log.parseFmt;
 const setLogWriter = shared.log.setLogWriter;
 const validateOpsCfg = shared.makeOp.validateOpsCfg;
 
@@ -128,22 +129,27 @@ pub fn Profiler(comptime DStruct: type, comptime ops_cfg: anytype) type {
             args: anytype,
         ) ErrorUnion!void {
             const fn_info = @typeInfo(@TypeOf(func)).@"fn";
-            const returns_val = comptime fn_info.return_type != null;
-            const returns_err = comptime blk: {
+            const returns_err, const returns_val = comptime blk: {
                 if (fn_info.return_type) |rt| {
-                    break :blk @typeInfo(rt) == .error_union;
-                } else break :blk false;
+                    const rt_info = @typeInfo(rt);
+                    switch (rt_info) {
+                        .void => break :blk .{ false, false },
+                        .error_union => {
+                            const payload = rt_info.error_union.payload;
+                            const has_val = payload != void;
+                            break :blk .{ true, has_val };
+                        },
+                        else => break :blk .{ false, true },
+                    }
+                } else {
+                    break :blk .{ false, false };
+                }
             };
 
-            const space = comptime std.mem.indexOfScalar(u8, fmt, ' ') orelse std.debug.panic("Fmt string must have a space following the name");
-            const arrow = comptime std.mem.indexOf(u8, fmt, "->") orelse fmt.len;
-            const arg_fmt = comptime fmt[space + 1 .. arrow];
+            const parsed_fmt = comptime parseFmt(fmt);
 
-            var r = std.io.Reader.fixed(fmt);
-            const fn_name = r.takeDelimiterExclusive(' ') catch return error.FmtParseError;
-
-            logPrint("#{}: {s}(", .{ self.step_idx, fn_name });
-            logPrint(arg_fmt, args);
+            logPrint("#{}: {s}(", .{ self.step_idx, parsed_fmt.fn_name });
+            logPrint(parsed_fmt.arg_fmt, args);
             logPrint(")", .{});
 
             var snap_before: Snapshot = undefined;
@@ -154,35 +160,19 @@ pub fn Profiler(comptime DStruct: type, comptime ops_cfg: anytype) type {
                 const ret = @call(.auto, func, args) catch |err| {
                     snap_after = try self.snapshot();
                     logPrint(" = {}", .{err});
-
                     const diff = diffSnapshots(snap_before, snap_after);
                     logDiff(diff);
                     return err;
                 };
                 snap_after = try self.snapshot();
 
-                if (returns_val) {
-                    _ = r.discardDelimiterInclusive('!') catch return error.FmtParseError;
-
-                    const remaining = r.peek(1) catch &[_]u8{};
-                    if (remaining.len > 0 and remaining[0] == '{') {
-                        _ = r.discardDelimiterExclusive('{') catch return error.FmtParseError;
-                        const ret_fmt = r.takeDelimiterInclusive('}') catch return error.FmtParseError;
-                        logPrint(" = ", .{});
-                        try logFmtArg(ret_fmt, ret);
-                    }
-                }
+                if (returns_val) logPrint(" = " ++ parsed_fmt.ret_fmt.?, .{ret});
             } else if (returns_val) {
                 snap_before = try self.snapshot();
                 const ret = @call(.auto, func, args);
                 snap_after = try self.snapshot();
 
-                _ = r.discardDelimiterInclusive('>') catch return error.FmtParseError;
-                _ = r.discardDelimiterExclusive('{') catch return error.FmtParseError;
-                const ret_fmt = r.takeDelimiterInclusive('}') catch return error.FmtParseError;
-
-                logPrint(" = ", .{});
-                try logFmtArg(ret_fmt, ret);
+                logPrint(" = " ++ parsed_fmt.ret_fmt.?, .{ret});
             } else {
                 snap_before = try self.snapshot();
                 @call(.auto, func, args);
